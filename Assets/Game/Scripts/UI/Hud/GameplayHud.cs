@@ -6,10 +6,13 @@ namespace SledSurfers.UI.Hud
     public sealed class GameplayHud
     {
         private readonly UIManager _ui;
+        private readonly float[] _coinProgressPositions;
+        private bool _coinMarkersConfigured;
 
-        public GameplayHud(UIManager ui)
+        public GameplayHud(UIManager ui, float[] coinProgressPositions)
         {
             _ui = ui;
+            _coinProgressPositions = coinProgressPositions;
         }
 
         public static void Register(UIFactory factory)
@@ -34,7 +37,12 @@ namespace SledSurfers.UI.Hud
                 _ui.Hide<LaunchPowerWidgetController>();
                 _ui.Show<DistanceWidgetController, DistanceWidgetView, float>(metrics.Distance);
                 _ui.Show<SpeedWidgetController, SpeedWidgetView, float>(metrics.SpeedKmh);
-                _ui.Show<TrackProgressWidgetController, TrackProgressWidgetView, float>(metrics.Progress);
+                var progressWidget = _ui.Show<TrackProgressWidgetController, TrackProgressWidgetView, float>(metrics.Progress);
+                if (!_coinMarkersConfigured)
+                {
+                    progressWidget.SetCoinMarkers(_coinProgressPositions);
+                    _coinMarkersConfigured = true;
+                }
             }
         }
     }

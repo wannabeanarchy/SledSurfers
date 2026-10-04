@@ -7,6 +7,7 @@ namespace SledSurfers.UI.Hud
     {
         [SerializeField] private TMP_Text _label;
         [SerializeField] private RectTransform _fill;
+        [SerializeField] private RectTransform[] _coinMarkers;
         private int _displayedValue = -1;
 
         public void SetValue(float value)
@@ -18,6 +19,24 @@ namespace SledSurfers.UI.Hud
             {
                 _displayedValue = displayedValue;
                 _label.SetText("{0}%", displayedValue);
+            }
+        }
+
+        public void SetCoinMarkers(float[] positions)
+        {
+            for (var i = 0; i < _coinMarkers.Length; i++)
+            {
+                if (_coinMarkers[i] == null)
+                {
+                    continue;
+                }
+
+                var hasPosition = positions != null && i < positions.Length;
+                var progress = hasPosition ? Mathf.Clamp01(positions[i]) : 0f;
+                _coinMarkers[i].anchorMin = new Vector2(.5f, progress);
+                _coinMarkers[i].anchorMax = new Vector2(.5f, progress);
+                _coinMarkers[i].anchoredPosition = Vector2.zero;
+                _coinMarkers[i].gameObject.SetActive(hasPosition);
             }
         }
     }

@@ -9,5 +9,10 @@ namespace SledSurfers.UI.Hud
         {
             TypedView.SetValue(value);
         }
+
+        public void SetCoinMarkers(float[] positions)
+        {
+            TypedView.SetCoinMarkers(positions);
+        }
     }
 }

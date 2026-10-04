@@ -46,7 +46,7 @@ The road BoxColliders form the track floor. A white Terrain overlays the road wi
 
 ## Current Status
 
-Player movement, pointer steering, camera following and automatic Slide/Jump animation selection are implemented. Drag-to-launch is implemented without a launcher model. Obstacles, collectibles, progression and a playable build remain to be implemented.
+Player movement, pointer steering, camera following and automatic Slide/Jump animation selection are implemented. Drag-to-launch is implemented without a launcher model. Iceberg collisions end the run; puddles apply continuous resistance while the player is inside. Four coins can be collected during a run and are marked on the track progress widget. Persistent collection, upgrades, a level finish and a playable build remain to be implemented.
 
 ## Asset Compatibility
 
@@ -59,3 +59,9 @@ Missing custom shaders in the supplied pack are replaced with Built-in shaders f
 `UIManager.Show` creates each registered controller and view once, then updates typed arguments on subsequent calls. Controllers subscribe in `OnShow` and unsubscribe in `OnHide`; repeated Show does not repeat subscriptions. Windows are exclusive, popups are exclusive and close when their window closes, and widgets coexist. Dispose the manager when its scene owner is destroyed. `BlocksGameplayInput` reports modal visibility; the gameplay owner must cancel active gestures and suspend pointer input while it is true. GameScene wires the UI catalog and Canvas layers through `GameplayCompositionRoot`. A green Retry widget appears after stopping and resets the player, camera, animation and input to the launch state. Temporary pickup effects will use a separate pool.
 
 HUD prefabs in `Assets/Game/Prefabs/UI/` display launch power before launching, then forward distance (meters), Rigidbody speed (km/h) and track progress. Distance starts at the release position and retains the furthest forward position. `HUD Target Distance` on `GameplayCompositionRoot` sets a distance goal; zero uses the end of active road colliders. Reaching 100% does not finish the run. Retry clears all readings. HUD graphics use plain Images without sprites and do not intercept input. The widget layer respects the screen safe area.
+
+## Obstacles
+
+`Assets/Game/Prefabs/Obstacles/IcebergObstacle_01.prefab` uses the supplied iceberg visual and a solid BoxCollider. Player collisions stop and freeze the attempt, then show Retry. `PuddleObstacle.prefab` reuses one mesh from `Park_BushObstacles_Shadows` with a shallow trigger. `Additional Resistance` controls continuous ground deceleration inside the puddle (30 m/s² by default). Exiting or disabling the puddle removes its resistance; airborne movement is unaffected. Overlapping puddles use the strongest resistance. Retry clears active slowdown zones. Place each prefab on the road or snow surface.
+
+Four scene coins use trigger colliders and disappear when the player reaches them. Retry restores them; collection is not persisted between runs. Their icons on the progress widget use the same world-distance positions as the placed coins.

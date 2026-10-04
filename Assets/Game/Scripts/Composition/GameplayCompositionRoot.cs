@@ -8,6 +8,7 @@ using SledSurfers.Gameplay.Run;
 using UnityEngine;
 using SledSurfers.Gameplay.Launch;
 using SledSurfers.Presentation;
+using SledSurfers.Gameplay.Collectibles;
 
 namespace SledSurfers.Composition
 {
@@ -30,7 +31,10 @@ namespace SledSurfers.Composition
         [SerializeField] private CameraFollow _camera;
         [SerializeField, Min(0), Tooltip("Distance goal in meters. Zero uses the end of the active road colliders.")]
         private float _hudTargetDistance;
+        [SerializeField] private CoinPickup[] _coins = Array.Empty<CoinPickup>();
         private float _trackEndZ;
+        private float _targetDistance;
+        private float[] _coinProgressPositions;
         private RunMetrics _metrics;
         private GameplayHud _hud;
         private UIManager _ui;
@@ -53,7 +57,6 @@ namespace SledSurfers.Composition
             factory.Register<RetryWidgetController, RetryWidgetView, Action>(view => new RetryWidgetController(view));
             GameplayHud.Register(factory);
             _ui = new UIManager(factory);
-            _hud = new GameplayHud(_ui);
             _metrics = new RunMetrics();
             _trackEndZ = _player.Position.z;
             foreach (var surface in _surfaces)
@@ -63,6 +66,16 @@ namespace SledSurfers.Composition
                     _trackEndZ = Mathf.Max(_trackEndZ, surface.bounds.max.z);
                 }
             }
+            _targetDistance = _hudTargetDistance > 0 ? _hudTargetDistance : _trackEndZ - _player.Position.z;
+            _coinProgressPositions = new float[_coins.Length];
+            for (var i = 0; i < _coins.Length; i++)
+            {
+                if (_coins[i] != null && _targetDistance > 0)
+                {
+                    _coinProgressPositions[i] = Mathf.Clamp01((_coins[i].transform.position.z - _player.Position.z) / _targetDistance);
+                }
+            }
+            _hud = new GameplayHud(_ui, _coinProgressPositions);
             _startPosition = _player.transform.position;
             _startRotation = _player.transform.rotation;
             _steering = new DragSteering();
@@ -125,6 +138,13 @@ namespace SledSurfers.Composition
             _steering.End(_startPosition.x);
             _session.Reset();
             _metrics.Reset();
+            foreach (var coin in _coins)
+            {
+                if (coin != null)
+                {
+                    coin.ResetPickup();
+                }
+            }
             _player.ResetRun(_startPosition, _startRotation);
             _camera.ResetRun();
             _animation.ResetRun();
@@ -178,8 +198,7 @@ namespace SledSurfers.Composition
         {
             if (_session.Release(out var velocity))
             {
-                var targetDistance = _hudTargetDistance > 0 ? _hudTargetDistance : _trackEndZ - _player.Position.z;
-                _metrics.Begin(_player.Position.z, targetDistance);
+                _metrics.Begin(_player.Position.z, _targetDistance);
                 _player.Launch(velocity);
             }
             else if (_session.Phase == RunPhase.Ready)

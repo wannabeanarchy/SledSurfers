@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SledSurfers.Gameplay.Player
@@ -14,6 +15,7 @@ namespace SledSurfers.Gameplay.Player
         [SerializeField, Min(1)] private float _slopeGravityMultiplier = 2;
         [SerializeField, Min(.01f)] private float _groundProbeDistance = .2f;
         [SerializeField, Min(0)] private float _stopSpeed = .3f;
+        private readonly Dictionary<Collider, float> _slowdownZones = new Dictionary<Collider, float>();
         private Rigidbody _body;
         private Collider[] _surfaces;
         private float _minimumX;
@@ -73,6 +75,7 @@ namespace SledSurfers.Gameplay.Player
 
         public void Launch(Vector3 velocity)
         {
+            _slowdownZones.Clear();
             _hasGroundContact = false;
             _hasSteered = false;
             _targetX = _body.position.x;
@@ -90,6 +93,7 @@ namespace SledSurfers.Gameplay.Player
 
         public void Stop()
         {
+            _slowdownZones.Clear();
             _hasGroundContact = false;
             IsRunning = false;
             _isSteering = false;
@@ -98,6 +102,32 @@ namespace SledSurfers.Gameplay.Player
                 _body.velocity = Vector3.zero;
                 _body.angularVelocity = Vector3.zero;
             }
+        }
+
+        public void EnterSlowdownZone(Collider zone, float additionalResistance)
+        {
+            if (zone != null)
+            {
+                _slowdownZones[zone] = Mathf.Max(0, additionalResistance);
+            }
+        }
+
+        public void ExitSlowdownZone(Collider zone)
+        {
+            if (zone != null)
+            {
+                _slowdownZones.Remove(zone);
+            }
+        }
+
+        public void Crash()
+        {
+            if (!IsRunning)
+            {
+                return;
+            }
+            Stop();
+            _body.isKinematic = true;
         }
 
         private void OnCollisionEnter(Collision collision)
@@ -209,7 +239,15 @@ namespace SledSurfers.Gameplay.Player
                     return;
                 }
                 var tangentVelocity = Vector3.ProjectOnPlane(velocity, hit.normal);
-                var resistance = Mathf.Min(_groundResistance, tangentVelocity.magnitude / Time.fixedDeltaTime);
+                var additionalResistance = 0f;
+                foreach (var zone in _slowdownZones)
+                {
+                    if (zone.Key != null && zone.Key.enabled && zone.Key.gameObject.activeInHierarchy)
+                    {
+                        additionalResistance = Mathf.Max(additionalResistance, zone.Value);
+                    }
+                }
+                var resistance = Mathf.Min(_groundResistance + additionalResistance, tangentVelocity.magnitude / Time.fixedDeltaTime);
                 // Rigidbody gravity already contributes once; amplify only its component along the slope.
                 var slopeGravity = Vector3.ProjectOnPlane(Physics.gravity, hit.normal) * (_slopeGravityMultiplier - 1);
                 _body.AddForce(slopeGravity - tangentVelocity.normalized * resistance, ForceMode.Acceleration);
