@@ -104,6 +104,15 @@ namespace SledSurfers.Gameplay.Player
             }
         }
 
+        public void Freeze()
+        {
+            Stop();
+            if (_body != null)
+            {
+                _body.isKinematic = true;
+            }
+        }
+
         public void EnterSlowdownZone(Collider zone, float additionalResistance)
         {
             if (zone != null)
@@ -126,8 +135,7 @@ namespace SledSurfers.Gameplay.Player
             {
                 return;
             }
-            Stop();
-            _body.isKinematic = true;
+            Freeze();
         }
 
         private void OnCollisionEnter(Collision collision)

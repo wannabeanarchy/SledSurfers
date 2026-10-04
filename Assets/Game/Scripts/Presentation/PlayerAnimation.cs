@@ -8,6 +8,7 @@ namespace SledSurfers.Presentation
     {
         [SerializeField] private Animator _animator;
         [SerializeField] private PlayerMotor _motor;
+        [SerializeField] private Transform _skateboard;
         [SerializeField, Min(0)] private float _slopeAlignmentSpeed = 12;
         private Quaternion _initialRotation;
         private static readonly int Running = Animator.StringToHash("IsRunning");
@@ -42,6 +43,10 @@ namespace SledSurfers.Presentation
             var normal = transform.parent != null ? transform.parent.InverseTransformDirection(_motor.GroundNormal) : _motor.GroundNormal;
             var target = _motor.IsRunning && _motor.IsGrounded ? Quaternion.FromToRotation(Vector3.up, normal) * _initialRotation : _initialRotation;
             transform.localRotation = Quaternion.Slerp(transform.localRotation, target, 1 - Mathf.Exp(-_slopeAlignmentSpeed * Time.deltaTime));
+            if (_skateboard != null)
+            {
+                _skateboard.rotation = transform.rotation;
+            }
         }
 
         private void Update()

@@ -1,3 +1,4 @@
+using System;
 using SledSurfers.Gameplay.Player;
 using UnityEngine;
 
@@ -6,6 +7,8 @@ namespace SledSurfers.Gameplay.Collectibles
     public sealed class CoinPickup : MonoBehaviour
     {
         private bool _isCollected;
+
+        public event Action Collected;
 
         private void OnTriggerEnter(Collider other)
         {
@@ -21,6 +24,7 @@ namespace SledSurfers.Gameplay.Collectibles
             }
 
             _isCollected = true;
+            Collected?.Invoke();
             gameObject.SetActive(false);
         }
 

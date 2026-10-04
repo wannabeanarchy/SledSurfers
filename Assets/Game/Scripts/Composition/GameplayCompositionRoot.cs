@@ -2,13 +2,15 @@ using SledSurfers.Gameplay.Player;
 using SledSurfers.Input;
 using System;
 using SledSurfers.UI;
-using SledSurfers.UI.Retry;
+using SledSurfers.UI.Results;
 using SledSurfers.UI.Hud;
 using SledSurfers.Gameplay.Run;
 using UnityEngine;
 using SledSurfers.Gameplay.Launch;
-using SledSurfers.Presentation;
 using SledSurfers.Gameplay.Collectibles;
+using SledSurfers.Presentation;
+using SledSurfers.Persistence;
+using UnityEngine.SceneManagement;
 
 namespace SledSurfers.Composition
 {
@@ -20,6 +22,7 @@ namespace SledSurfers.Composition
         [SerializeField, Range(0, 30)] private float _maximumLaunchAngle = 12;
         [SerializeField, Range(.05f, .8f)] private float _pullScreenFraction = .25f;
         [SerializeField] private PlayerAnimation _animation;
+        [SerializeField] private SlingshotRopeVisual _slingshotRopeVisual;
         [SerializeField, Min(0)] private float _maximumPullbackDistance = 2;
         [SerializeField] private float _minimumX = -18;
         [SerializeField] private float _maximumX = 18;
@@ -28,9 +31,10 @@ namespace SledSurfers.Composition
         [SerializeField] private Transform _windowRoot;
         [SerializeField] private Transform _popupRoot;
         [SerializeField] private Transform _widgetRoot;
-        [SerializeField] private CameraFollow _camera;
         [SerializeField, Min(0), Tooltip("Distance goal in meters. Zero uses the end of the active road colliders.")]
         private float _hudTargetDistance;
+        [SerializeField, Min(0)] private float _coinsPerMeter = 1;
+        [SerializeField] private string _lobbySceneName = "LobbyScene";
         [SerializeField] private CoinPickup[] _coins = Array.Empty<CoinPickup>();
         private float _trackEndZ;
         private float _targetDistance;
@@ -38,23 +42,29 @@ namespace SledSurfers.Composition
         private RunMetrics _metrics;
         private GameplayHud _hud;
         private UIManager _ui;
-        private Vector3 _startPosition;
-        private Quaternion _startRotation;
         private DragSteering _steering;
         private PointerInput _input;
         private LaunchSession _session;
+        private PlayerProgressStorage _progressStorage;
         private bool _hasFocus = true;
+        private bool _isLoadingLobby;
 
         private void Start()
         {
-            if (_player == null || _surfaces == null || _surfaces.Length == 0 || _animation == null || _minimumX >= _maximumX || _uiConfig == null || _windowRoot == null || _popupRoot == null || _widgetRoot == null || _camera == null)
+            if (_player == null || _surfaces == null || _surfaces.Length == 0 || _animation == null || _minimumX >= _maximumX || _uiConfig == null || _windowRoot == null || _popupRoot == null || _widgetRoot == null || string.IsNullOrWhiteSpace(_lobbySceneName))
             {
                 Debug.LogError("Gameplay references or track limits are invalid.", this);
                 enabled = false;
                 return;
             }
+            if (_coins == null)
+            {
+                _coins = Array.Empty<CoinPickup>();
+            }
+            _progressStorage = new PlayerProgressStorage();
+            SessionWallet.Initialize(_progressStorage.Load().CoinBalance);
             var factory = new UIFactory(_uiConfig, _windowRoot, _popupRoot, _widgetRoot);
-            factory.Register<RetryWidgetController, RetryWidgetView, Action>(view => new RetryWidgetController(view));
+            factory.Register<RunResultPopupController, RunResultPopupView, RunResultPopupArguments>(view => new RunResultPopupController(view));
             GameplayHud.Register(factory);
             _ui = new UIManager(factory);
             _metrics = new RunMetrics();
@@ -76,15 +86,24 @@ namespace SledSurfers.Composition
                 }
             }
             _hud = new GameplayHud(_ui, _coinProgressPositions);
-            _startPosition = _player.transform.position;
-            _startRotation = _player.transform.rotation;
             _steering = new DragSteering();
             _session = new LaunchSession(_maximumLaunchSpeed, _maximumLaunchAngle, _pullScreenFraction);
+            if (_slingshotRopeVisual != null)
+            {
+                _slingshotRopeVisual.Initialize(_session, _player.transform);
+            }
             _input = new PointerInput();
             _input.Pressed += OnPressed;
             _input.Moved += OnMoved;
             _input.Released += OnReleased;
             _input.Canceled += OnCanceled;
+            foreach (var coin in _coins)
+            {
+                if (coin != null)
+                {
+                    coin.Collected += OnCoinCollected;
+                }
+            }
             _animation.Initialize(_session);
             _player.Initialize(_surfaces, _minimumX, _maximumX);
             _player.Prepare();
@@ -106,11 +125,11 @@ namespace SledSurfers.Composition
             if (_session.Phase == RunPhase.Running)
             {
                 _player.SetSteering(_steering.TargetX, _steering.IsDragging);
-                if (!_player.IsRunning)
+                _metrics.Update(_player.Position.z, _player.Velocity);
+                var reachedEnd = _targetDistance > 0 && _metrics.Distance >= _targetDistance;
+                if (!_player.IsRunning || reachedEnd)
                 {
-                    _session.Stop();
-                    CancelInput();
-                    _ui.Show<RetryWidgetController, RetryWidgetView, Action>(Retry);
+                    FinishRun();
                 }
             }
         }
@@ -121,35 +140,48 @@ namespace SledSurfers.Composition
             {
                 return;
             }
-            if (_session.Phase == RunPhase.Running || _session.Phase == RunPhase.Stopped)
+            if (_session.Phase == RunPhase.Running)
             {
                 _metrics.Update(_player.Position.z, _player.Velocity);
             }
-            _hud.Refresh(_session, _metrics);
+            if (_session.Phase != RunPhase.Stopped)
+            {
+                _hud.Refresh(_session, _metrics);
+            }
         }
 
-        private void Retry()
+        private void FinishRun()
         {
-            if (_session.Phase != RunPhase.Stopped)
+            if (_session.Phase != RunPhase.Running)
             {
                 return;
             }
+
+            _session.Stop();
+            _player.Freeze();
             CancelInput();
-            _steering.End(_startPosition.x);
-            _session.Reset();
-            _metrics.Reset();
-            foreach (var coin in _coins)
+            _hud.Hide();
+
+            var coinsEarned = RunRewardCalculator.CalculateCoins(_metrics.Distance, _metrics.CollectedCoinCount, _coinsPerMeter);
+            SessionWallet.Add(coinsEarned);
+            _progressStorage.Save(new PlayerProgressData { CoinBalance = SessionWallet.Balance });
+            _ui.Show<RunResultPopupController, RunResultPopupView, RunResultPopupArguments>(new RunResultPopupArguments(coinsEarned, ContinueToLobby));
+        }
+
+        private void ContinueToLobby()
+        {
+            if (_isLoadingLobby)
             {
-                if (coin != null)
-                {
-                    coin.ResetPickup();
-                }
+                return;
             }
-            _player.ResetRun(_startPosition, _startRotation);
-            _camera.ResetRun();
-            _animation.ResetRun();
-            _ui.Hide<RetryWidgetController>();
-            _hud.Refresh(_session, _metrics);
+
+            _isLoadingLobby = true;
+            SceneManager.LoadScene(_lobbySceneName);
+        }
+
+        private void OnCoinCollected()
+        {
+            _metrics.RegisterCoinCollected();
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -198,7 +230,19 @@ namespace SledSurfers.Composition
         {
             if (_session.Release(out var velocity))
             {
-                _metrics.Begin(_player.Position.z, _targetDistance);
+                var launchPosition = _player.Position;
+                if (_hudTargetDistance <= 0)
+                {
+                    _targetDistance = Mathf.Max(0, _trackEndZ - launchPosition.z);
+                }
+                for (var i = 0; i < _coins.Length; i++)
+                {
+                    if (_coins[i] != null && _targetDistance > 0)
+                    {
+                        _coinProgressPositions[i] = Mathf.Clamp01((_coins[i].transform.position.z - launchPosition.z) / _targetDistance);
+                    }
+                }
+                _metrics.Begin(launchPosition.z, _targetDistance);
                 _player.Launch(velocity);
             }
             else if (_session.Phase == RunPhase.Ready)
@@ -222,11 +266,20 @@ namespace SledSurfers.Composition
         private void OnDestroy()
         {
             _ui?.Dispose();
-            if (_input == null) { return; }
-            _input.Pressed -= OnPressed;
-            _input.Moved -= OnMoved;
-            _input.Released -= OnReleased;
-            _input.Canceled -= OnCanceled;
+            if (_input != null)
+            {
+                _input.Pressed -= OnPressed;
+                _input.Moved -= OnMoved;
+                _input.Released -= OnReleased;
+                _input.Canceled -= OnCanceled;
+            }
+            foreach (var coin in _coins)
+            {
+                if (coin != null)
+                {
+                    coin.Collected -= OnCoinCollected;
+                }
+            }
         }
 
         private void CancelInput()

@@ -8,6 +8,7 @@ namespace SledSurfers.Gameplay.Run
         private float _targetDistance;
         public float Distance { get; private set; }
         public float SpeedKmh { get; private set; }
+        public int CollectedCoinCount { get; private set; }
         public float Progress => _targetDistance > 0 ? Mathf.Clamp01(Distance / _targetDistance) : 0;
 
         public void Begin(float launchZ, float targetDistance)
@@ -23,12 +24,18 @@ namespace SledSurfers.Gameplay.Run
             SpeedKmh = velocity.magnitude * 3.6f;
         }
 
+        public void RegisterCoinCollected()
+        {
+            CollectedCoinCount++;
+        }
+
         public void Reset()
         {
             _launchZ = 0;
             _targetDistance = 0;
             Distance = 0;
             SpeedKmh = 0;
+            CollectedCoinCount = 0;
         }
     }
 }

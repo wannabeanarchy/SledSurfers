@@ -45,5 +45,13 @@ namespace SledSurfers.UI.Hud
                 }
             }
         }
+
+        public void Hide()
+        {
+            _ui.Hide<LaunchPowerWidgetController>();
+            _ui.Hide<DistanceWidgetController>();
+            _ui.Hide<SpeedWidgetController>();
+            _ui.Hide<TrackProgressWidgetController>();
+        }
     }
 }
