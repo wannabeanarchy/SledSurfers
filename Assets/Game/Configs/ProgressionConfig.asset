@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5049941fca4142a5ab6905bcd9000003, type: 3}
+  m_Name: ProgressionConfig
+  m_EditorClassIdentifier:
+  _baseLaunchSpeed: 40
+  _launchSpeedPerLevel: 4
+  _slingshotCosts:
+    _startingCost: 500
+    _growthPerLevel: 1.5
+    _maximumLevel: 10
+  _baseGroundTurnRate: 25
+  _groundTurnRateGrowthPerLevel: 1.2
+  _baseAirTurnRate: 10
+  _airTurnRateGrowthPerLevel: 1.15
+  _baseMaximumSteeringAngle: 15
+  _maximumSteeringAnglePerLevel: 4
+  _skateCosts:
+    _startingCost: 600
+    _growthPerLevel: 1.5
+    _maximumLevel: 10
+  _baseCoinsPerKilometer: 1000
+  _incomeMultiplierPerLevel: 0.2
+  _incomeCosts:
+    _startingCost: 1000
+    _growthPerLevel: 1.6
+    _maximumLevel: 10
+  _coinsPerCollectedCoin: 100

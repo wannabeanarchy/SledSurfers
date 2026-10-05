@@ -14,5 +14,10 @@ namespace SledSurfers.UI.Hud
         {
             TypedView.SetCoinMarkers(positions);
         }
+
+        public void SetBestProgress(float progress, bool hasBestDistance)
+        {
+            TypedView.SetBestProgress(progress, hasBestDistance);
+        }
     }
 }

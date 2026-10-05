@@ -8,6 +8,8 @@ namespace SledSurfers.UI.Hud
         [SerializeField] private TMP_Text _label;
         [SerializeField] private RectTransform _fill;
         [SerializeField] private RectTransform[] _coinMarkers;
+        [SerializeField] private RectTransform _bestMarker;
+        [SerializeField] private TMP_Text _bestLabel;
         private int _displayedValue = -1;
 
         public void SetValue(float value)
@@ -38,6 +40,25 @@ namespace SledSurfers.UI.Hud
                 _coinMarkers[i].anchoredPosition = Vector2.zero;
                 _coinMarkers[i].gameObject.SetActive(hasPosition);
             }
+        }
+
+        public void SetBestProgress(float progress, bool hasBestDistance)
+        {
+            if (_bestMarker == null || _bestLabel == null)
+            {
+                return;
+            }
+
+            progress = Mathf.Clamp01(progress);
+            _bestMarker.anchorMin = new Vector2(.5f, progress);
+            _bestMarker.anchorMax = new Vector2(.5f, progress);
+            _bestMarker.anchoredPosition = Vector2.zero;
+            var labelRect = _bestLabel.rectTransform;
+            labelRect.anchorMin = new Vector2(.5f, progress);
+            labelRect.anchorMax = new Vector2(.5f, progress);
+            labelRect.anchoredPosition = new Vector2(48, 0);
+            _bestMarker.gameObject.SetActive(hasBestDistance);
+            _bestLabel.gameObject.SetActive(hasBestDistance);
         }
     }
 }

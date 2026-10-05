@@ -5,31 +5,31 @@ namespace SledSurfers.Input
     public sealed class DragSteering
     {
         private float _pointerOrigin;
-        private float _playerOrigin;
         public bool IsDragging { get; private set; }
-        public float TargetX { get; private set; }
+        public float SteeringInput { get; private set; }
 
-        public void Begin(float pointerX, float playerX)
+        public void Begin(float pointerX)
         {
             _pointerOrigin = pointerX;
-            _playerOrigin = playerX;
-            TargetX = playerX;
+            SteeringInput = 0;
             IsDragging = true;
         }
 
-        public void Move(float pointerX, float screenWidth, float dragRange, float minimumX, float maximumX)
+        public void Move(float pointerX, float screenWidth, float fullSteeringDragFraction)
         {
-            if (!IsDragging || screenWidth <= 0)
+            if (!IsDragging || screenWidth <= 0 || fullSteeringDragFraction <= 0)
             {
                 return;
             }
-            TargetX = Mathf.Clamp(_playerOrigin + (pointerX - _pointerOrigin) / screenWidth * dragRange, minimumX, maximumX);
+
+            var fullSteeringDrag = screenWidth * fullSteeringDragFraction;
+            SteeringInput = Mathf.Clamp((pointerX - _pointerOrigin) / fullSteeringDrag, -1, 1);
         }
 
-        public void End(float playerX)
+        public void End()
         {
             IsDragging = false;
-            TargetX = playerX;
+            SteeringInput = 0;
         }
     }
 }

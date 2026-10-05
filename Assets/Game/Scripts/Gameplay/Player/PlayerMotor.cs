@@ -6,11 +6,9 @@ namespace SledSurfers.Gameplay.Player
     [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
     public sealed class PlayerMotor : MonoBehaviour
     {
-        [SerializeField, Min(0)] private float _steeringResponse = 6;
-        [SerializeField, Min(0)] private float _lateralSpeed = 12;
-        [SerializeField, Range(0, 80)] private float _maximumSteeringAngle = 35;
-        [SerializeField, Min(0)] private float _groundAcceleration = 60;
-        [SerializeField, Min(0)] private float _airAcceleration = 20;
+        private float _groundTurnRate = 90;
+        private float _airTurnRate = 30;
+        private float _maximumSteeringAngle = 35;
         [SerializeField, Min(0)] private float _groundResistance = 2f;
         [SerializeField, Min(1)] private float _slopeGravityMultiplier = 2;
         [SerializeField, Min(.01f)] private float _groundProbeDistance = .2f;
@@ -20,14 +18,14 @@ namespace SledSurfers.Gameplay.Player
         private Collider[] _surfaces;
         private float _minimumX;
         private float _maximumX;
-        private float _targetX;
-        private bool _isSteering;
-        private bool _hasSteered;
+        private float _steeringInput;
+        private float _headingAngle;
         private Vector3 _launchOrigin;
         private bool _hasGroundContact;
         private Vector3 _contactNormal;
         public bool IsRunning { get; private set; }
         public bool IsGrounded { get; private set; }
+        public float HeadingAngle => _headingAngle;
         public Vector3 GroundNormal { get; private set; } = Vector3.up;
         public Vector3 Position => _body != null ? _body.position : transform.position;
         public Vector3 Velocity => _body != null ? _body.velocity : Vector3.zero;
@@ -42,6 +40,13 @@ namespace SledSurfers.Gameplay.Player
             _surfaces = surfaces;
             _minimumX = minimumX;
             _maximumX = maximumX;
+        }
+
+        public void ConfigureHandling(float groundTurnRate, float airTurnRate, float maximumSteeringAngle)
+        {
+            _groundTurnRate = Mathf.Max(0, groundTurnRate);
+            _airTurnRate = Mathf.Max(0, airTurnRate);
+            _maximumSteeringAngle = Mathf.Clamp(maximumSteeringAngle, 0, 80);
         }
 
         public void Prepare()
@@ -59,8 +64,8 @@ namespace SledSurfers.Gameplay.Player
             _body.rotation = rotation;
             transform.SetPositionAndRotation(position, rotation);
             _launchOrigin = position;
-            _targetX = position.x;
-            _hasSteered = false;
+            _steeringInput = 0;
+            _headingAngle = 0;
             IsGrounded = false;
             GroundNormal = Vector3.up;
         }
@@ -77,18 +82,16 @@ namespace SledSurfers.Gameplay.Player
         {
             _slowdownZones.Clear();
             _hasGroundContact = false;
-            _hasSteered = false;
-            _targetX = _body.position.x;
+            _steeringInput = 0;
+            _headingAngle = Mathf.Atan2(velocity.x, velocity.z) * Mathf.Rad2Deg;
             _body.isKinematic = false;
             _body.velocity = velocity;
             IsRunning = true;
         }
 
-        public void SetSteering(float targetX, bool isSteering)
+        public void SetSteering(float steeringInput, bool isSteering)
         {
-            _targetX = Mathf.Clamp(targetX, _minimumX, _maximumX);
-            _isSteering = isSteering;
-            _hasSteered |= isSteering;
+            _steeringInput = isSteering ? Mathf.Clamp(steeringInput, -1, 1) : 0;
         }
 
         public void Stop()
@@ -96,7 +99,7 @@ namespace SledSurfers.Gameplay.Player
             _slowdownZones.Clear();
             _hasGroundContact = false;
             IsRunning = false;
-            _isSteering = false;
+            _steeringInput = 0;
             if (_body != null && !_body.isKinematic)
             {
                 _body.velocity = Vector3.zero;
@@ -216,20 +219,29 @@ namespace SledSurfers.Gameplay.Player
             IsGrounded = hasSurface && Vector3.Dot(velocity, hit.normal) <= .5f;
             GroundNormal = IsGrounded ? hit.normal : Vector3.up;
             var horizontalSpeed = new Vector2(velocity.x, velocity.z).magnitude;
-            var lateralLimit = Mathf.Min(_lateralSpeed, horizontalSpeed * Mathf.Sin(_maximumSteeringAngle * Mathf.Deg2Rad));
-            var desiredLateralSpeed = _isSteering ? Mathf.Clamp((_targetX - _body.position.x) * _steeringResponse, -lateralLimit, lateralLimit) : 0;
-            if (_isSteering || _hasSteered)
+            if (Mathf.Abs(_steeringInput) > 0.001f && horizontalSpeed > 0.01f)
             {
-                var surfaceSpeed = IsGrounded ? Vector3.ProjectOnPlane(velocity, hit.normal).magnitude : 0;
-                var normalSpeed = IsGrounded ? Vector3.Dot(velocity, hit.normal) : 0;
-                velocity.x = Mathf.MoveTowards(velocity.x, desiredLateralSpeed, (IsGrounded ? _groundAcceleration : _airAcceleration) * Time.fixedDeltaTime);
-                velocity.x = Mathf.Clamp(velocity.x, -horizontalSpeed, horizontalSpeed);
-                // Steering redirects horizontal momentum without adding speed.
-                velocity.z = Mathf.Sqrt(Mathf.Max(0, horizontalSpeed * horizontalSpeed - velocity.x * velocity.x)) * Mathf.Sign(velocity.z);
+                var turnRate = IsGrounded ? _groundTurnRate : _airTurnRate;
+                _headingAngle = Mathf.Clamp(
+                    _headingAngle + _steeringInput * turnRate * Time.fixedDeltaTime,
+                    -_maximumSteeringAngle,
+                    _maximumSteeringAngle);
+            }
+
+            if (horizontalSpeed > 0.01f)
+            {
+                var forward = Quaternion.Euler(0, _headingAngle, 0) * Vector3.forward;
                 if (IsGrounded)
                 {
-                    var direction = Vector3.ProjectOnPlane(velocity, hit.normal).normalized;
+                    var surfaceSpeed = Vector3.ProjectOnPlane(velocity, hit.normal).magnitude;
+                    var normalSpeed = Vector3.Dot(velocity, hit.normal);
+                    var direction = Vector3.ProjectOnPlane(forward, hit.normal).normalized;
                     velocity = direction * surfaceSpeed + hit.normal * normalSpeed;
+                }
+                else
+                {
+                    velocity.x = forward.x * horizontalSpeed;
+                    velocity.z = forward.z * horizontalSpeed;
                 }
             }
             var nextX = _body.position.x + velocity.x * Time.fixedDeltaTime;
@@ -243,7 +255,6 @@ namespace SledSurfers.Gameplay.Player
                 if (velocity.z <= _stopSpeed)
                 {
                     Stop();
-                    _body.isKinematic = true;
                     return;
                 }
                 var tangentVelocity = Vector3.ProjectOnPlane(velocity, hit.normal);

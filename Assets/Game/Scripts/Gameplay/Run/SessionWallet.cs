@@ -26,6 +26,19 @@ namespace SledSurfers.Gameplay.Run
             _balance += Mathf.Max(0, amount);
         }
 
+        public static bool TrySpend(int amount)
+        {
+            Initialize(0);
+            amount = Mathf.Max(0, amount);
+            if (_balance < amount)
+            {
+                return false;
+            }
+
+            _balance -= amount;
+            return true;
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Reset()
         {

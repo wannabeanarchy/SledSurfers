@@ -7,8 +7,8 @@ namespace SledSurfers.Presentation
     {
         [SerializeField] private Transform _leftAnchor;
         [SerializeField] private Transform _rightAnchor;
-        [SerializeField] private Vector3 _anchorOffset = new Vector3(0, 1.16f, 0);
-        [SerializeField] private Vector3 _waistCenterOffset = new Vector3(0, 4f, -0.55f);
+        [SerializeField] private Vector3 _anchorOffset = new Vector3(0.01f, 1.16f, -0.76f);
+        [SerializeField] private Vector3 _waistCenterOffset = new Vector3(0, 4f, -1.12f);
         [SerializeField, Min(0.1f)] private float _waistHalfWidth = 0.35f;
         [SerializeField, Min(0.01f)] private float _waistDepth = 0.25f;
         [SerializeField, Min(0)] private float _restSag = 0.65f;

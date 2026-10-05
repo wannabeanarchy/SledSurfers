@@ -14,7 +14,7 @@ namespace SledSurfers.UI.Hud
             if (_displayedValue != displayedValue)
             {
                 _displayedValue = displayedValue;
-                _label.SetText("{0} km/h", displayedValue);
+                _label.SetText("{0} m/s", displayedValue);
             }
         }
     }

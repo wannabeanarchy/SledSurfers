@@ -144,10 +144,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3556d4700228344dbadd746dd1fa2598, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _steeringResponse: 6
-  _lateralSpeed: 12
-  _groundAcceleration: 60
-  _airAcceleration: 20
   _groundResistance: 2
   _groundProbeDistance: 0.2
   _stopSpeed: 0.3

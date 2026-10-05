@@ -23,7 +23,7 @@ namespace SledSurfers.UI.Hud
             factory.Register<TrackProgressWidgetController, TrackProgressWidgetView, float>(view => new TrackProgressWidgetController(view));
         }
 
-        public void Refresh(LaunchSession session, RunMetrics metrics)
+        public void Refresh(LaunchSession session, RunMetrics metrics, float bestProgress, bool hasBestDistance)
         {
             if (session.Phase == RunPhase.Ready || session.Phase == RunPhase.Pulling)
             {
@@ -36,13 +36,14 @@ namespace SledSurfers.UI.Hud
             {
                 _ui.Hide<LaunchPowerWidgetController>();
                 _ui.Show<DistanceWidgetController, DistanceWidgetView, float>(metrics.Distance);
-                _ui.Show<SpeedWidgetController, SpeedWidgetView, float>(metrics.SpeedKmh);
+                _ui.Show<SpeedWidgetController, SpeedWidgetView, float>(metrics.SpeedMetersPerSecond);
                 var progressWidget = _ui.Show<TrackProgressWidgetController, TrackProgressWidgetView, float>(metrics.Progress);
                 if (!_coinMarkersConfigured)
                 {
                     progressWidget.SetCoinMarkers(_coinProgressPositions);
                     _coinMarkersConfigured = true;
                 }
+                progressWidget.SetBestProgress(bestProgress, hasBestDistance);
             }
         }
 

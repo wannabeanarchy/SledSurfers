@@ -27,6 +27,10 @@ namespace SledSurfers.Persistence
                 }
 
                 progress.CoinBalance = Mathf.Max(0, progress.CoinBalance);
+                progress.BestDistanceMeters = IsValidDistance(progress.BestDistanceMeters) ? Mathf.Max(0, progress.BestDistanceMeters) : 0;
+                progress.SlingshotUpgradeLevel = Mathf.Max(0, progress.SlingshotUpgradeLevel);
+                progress.SkateUpgradeLevel = Mathf.Max(0, progress.SkateUpgradeLevel);
+                progress.IncomeUpgradeLevel = Mathf.Max(0, progress.IncomeUpgradeLevel);
                 return progress;
             }
             catch (System.ArgumentException)
@@ -39,11 +43,22 @@ namespace SledSurfers.Persistence
         {
             var safeProgress = new PlayerProgressData
             {
-                CoinBalance = progress != null ? Mathf.Max(0, progress.CoinBalance) : 0
+                CoinBalance = progress != null ? Mathf.Max(0, progress.CoinBalance) : 0,
+                BestDistanceMeters = progress != null && IsValidDistance(progress.BestDistanceMeters)
+                    ? Mathf.Max(0, progress.BestDistanceMeters)
+                    : 0,
+                SlingshotUpgradeLevel = progress != null ? Mathf.Max(0, progress.SlingshotUpgradeLevel) : 0,
+                SkateUpgradeLevel = progress != null ? Mathf.Max(0, progress.SkateUpgradeLevel) : 0,
+                IncomeUpgradeLevel = progress != null ? Mathf.Max(0, progress.IncomeUpgradeLevel) : 0
             };
 
             PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(safeProgress));
             PlayerPrefs.Save();
+        }
+
+        private static bool IsValidDistance(float distance)
+        {
+            return !float.IsNaN(distance) && !float.IsInfinity(distance);
         }
     }
 }
