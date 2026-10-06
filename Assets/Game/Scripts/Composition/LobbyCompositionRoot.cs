@@ -1,6 +1,5 @@
 using SledSurfers.UI;
 using SledSurfers.UI.Lobby;
-using SledSurfers.Gameplay.Run;
 using SledSurfers.Persistence;
 using SledSurfers.Progression;
 using UnityEngine;
@@ -45,7 +44,6 @@ namespace SledSurfers.Composition
                 _progressStorage.Save(_progress);
             }
 
-            SessionWallet.Initialize(_progress.CoinBalance);
             RefreshLobby();
         }
 
@@ -69,14 +67,14 @@ namespace SledSurfers.Composition
         {
             var currentLevel = GetUpgradeLevel(upgradeType);
             var cost = _progressionConfig.GetUpgradeCost(upgradeType, currentLevel);
-            if (currentLevel >= _progressionConfig.GetMaximumLevel(upgradeType) || !SessionWallet.TrySpend(cost))
+            if (currentLevel >= _progressionConfig.GetMaximumLevel(upgradeType) || _progress.CoinBalance < cost)
             {
                 RefreshLobby();
                 return;
             }
 
+            _progress.CoinBalance -= cost;
             SetUpgradeLevel(upgradeType, currentLevel + 1);
-            _progress.CoinBalance = SessionWallet.Balance;
             _progressStorage.Save(_progress);
             RefreshLobby();
         }
@@ -85,13 +83,12 @@ namespace SledSurfers.Composition
         {
             _progressStorage.Reset();
             _progress = _progressStorage.Load(_coinBalance);
-            SessionWallet.ResetBalance(_progress.CoinBalance);
             RefreshLobby();
         }
 
         private void RefreshLobby()
         {
-            var balance = SessionWallet.Balance;
+            var balance = _progress.CoinBalance;
             var arguments = new LobbyWindowArguments(
                 balance,
                 GetUpgradeCardState(PlayerUpgradeType.Slingshot, balance),

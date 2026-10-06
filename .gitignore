@@ -165,3 +165,7 @@ DerivedData/
 # Playgrounds
 timeline.xctimeline
 playground.xcworkspace
+
+### Local IDE / Unity editor state
+.idea/
+/ProjectSettings/SceneTemplateSettings.json
