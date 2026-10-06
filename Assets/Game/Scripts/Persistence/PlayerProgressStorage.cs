@@ -56,6 +56,12 @@ namespace SledSurfers.Persistence
             PlayerPrefs.Save();
         }
 
+        public void Reset()
+        {
+            PlayerPrefs.DeleteKey(SaveKey);
+            PlayerPrefs.Save();
+        }
+
         private static bool IsValidDistance(float distance)
         {
             return !float.IsNaN(distance) && !float.IsInfinity(distance);

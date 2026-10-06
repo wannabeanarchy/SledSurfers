@@ -15,15 +15,14 @@ namespace SledSurfers.Input
             IsDragging = true;
         }
 
-        public void Move(float pointerX, float screenWidth, float fullSteeringDragFraction)
+        public void Move(float pointerX, float steeringRadiusPixels)
         {
-            if (!IsDragging || screenWidth <= 0 || fullSteeringDragFraction <= 0)
+            if (!IsDragging || steeringRadiusPixels <= 0)
             {
                 return;
             }
 
-            var fullSteeringDrag = screenWidth * fullSteeringDragFraction;
-            SteeringInput = Mathf.Clamp((pointerX - _pointerOrigin) / fullSteeringDrag, -1, 1);
+            SteeringInput = Mathf.Clamp((pointerX - _pointerOrigin) / steeringRadiusPixels, -1, 1);
         }
 
         public void End()

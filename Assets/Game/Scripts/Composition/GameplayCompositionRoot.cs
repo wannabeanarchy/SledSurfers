@@ -24,10 +24,11 @@ namespace SledSurfers.Composition
         [SerializeField, Range(.05f, .8f)] private float _pullScreenFraction = .25f;
         [SerializeField] private PlayerAnimation _animation;
         [SerializeField] private SlingshotRopeVisual _slingshotRopeVisual;
-        [SerializeField, Min(0)] private float _maximumPullbackDistance = 2;
+        [SerializeField, Min(0)] private float _maximumLateralPullDistance = 2.5f;
+        [SerializeField, Min(0)] private float _maximumBackwardPullDistance = 4f;
         [SerializeField] private float _minimumX = -18;
         [SerializeField] private float _maximumX = 18;
-        [SerializeField, Range(.05f, .5f)] private float _fullSteeringDragScreenFraction = .25f;
+        [SerializeField, Min(24)] private float _steeringJoystickRadius = 90;
         [SerializeField] private UIConfig _uiConfig;
         [SerializeField] private Transform _windowRoot;
         [SerializeField] private Transform _popupRoot;
@@ -47,6 +48,7 @@ namespace SledSurfers.Composition
         private GameplayHud _hud;
         private UIManager _ui;
         private DragSteering _steering;
+        private SteeringJoystickVisual _steeringJoystick;
         private PointerInput _input;
         private LaunchSession _session;
         private PlayerProgressStorage _progressStorage;
@@ -57,14 +59,16 @@ namespace SledSurfers.Composition
 
         private void Start()
         {
-            if (_player == null || _surfaces == null || _surfaces.Length == 0 || _animation == null || _progressionConfig == null || _minimumX >= _maximumX || _uiConfig == null || _windowRoot == null || _popupRoot == null || _widgetRoot == null || string.IsNullOrWhiteSpace(_lobbySceneName))
+            var skateboardGroundCollider = _animation != null ? _animation.SkateboardGroundCollider : null;
+            if (_player == null || _surfaces == null || _surfaces.Length == 0 || _animation == null || skateboardGroundCollider == null || _progressionConfig == null || _minimumX >= _maximumX || _uiConfig == null || _windowRoot == null || _popupRoot == null || _widgetRoot == null || string.IsNullOrWhiteSpace(_lobbySceneName))
             {
                 Debug.LogError("Gameplay references or track limits are invalid.", this);
                 enabled = false;
                 return;
             }
 
-            _trackEndZ = _player.Position.z;
+            var startZ = skateboardGroundCollider.bounds.center.z;
+            _trackEndZ = startZ;
             var hasActiveTrackSurface = false;
             foreach (var surface in _surfaces)
             {
@@ -75,7 +79,7 @@ namespace SledSurfers.Composition
                 }
             }
 
-            _targetDistance = _hudTargetDistance > 0 ? _hudTargetDistance : _trackEndZ - _player.Position.z;
+            _targetDistance = _hudTargetDistance > 0 ? _hudTargetDistance : _trackEndZ - startZ;
             if (!hasActiveTrackSurface || _targetDistance <= 0)
             {
                 Debug.LogError("Gameplay needs at least one active track collider and a positive target distance.", this);
@@ -109,11 +113,12 @@ namespace SledSurfers.Composition
             {
                 if (_coins[i] != null && _targetDistance > 0)
                 {
-                    _coinProgressPositions[i] = Mathf.Clamp01((_coins[i].transform.position.z - _player.Position.z) / _targetDistance);
+                    _coinProgressPositions[i] = Mathf.Clamp01((_coins[i].transform.position.z - startZ) / _targetDistance);
                 }
             }
             _hud = new GameplayHud(_ui, _coinProgressPositions);
             _steering = new DragSteering();
+            _steeringJoystick = new SteeringJoystickVisual(_widgetRoot, _steeringJoystickRadius);
             _session = new LaunchSession(
                 _progressionConfig.GetMaximumLaunchSpeed(_playerProgress.SlingshotUpgradeLevel),
                 _maximumLaunchAngle,
@@ -135,7 +140,7 @@ namespace SledSurfers.Composition
                 }
             }
             _animation.Initialize(_session);
-            _player.Initialize(_surfaces, _minimumX, _maximumX);
+            _player.Initialize(_surfaces, _minimumX, _maximumX, skateboardGroundCollider);
             _player.ConfigureHandling(
                 _progressionConfig.GetGroundTurnRate(_playerProgress.SkateUpgradeLevel),
                 _progressionConfig.GetAirTurnRate(_playerProgress.SkateUpgradeLevel),
@@ -164,7 +169,7 @@ namespace SledSurfers.Composition
             if (_session.Phase == RunPhase.Running)
             {
                 _player.SetSteering(_steering.SteeringInput, _steering.IsDragging);
-                _metrics.Update(_player.Position.z, _player.Velocity);
+                _metrics.Update(_player.BoardPosition.z, _player.Velocity);
                 var reachedEnd = _targetDistance > 0 && _metrics.Distance >= _targetDistance;
                 if (!_player.IsRunning || reachedEnd)
                 {
@@ -181,7 +186,7 @@ namespace SledSurfers.Composition
             }
             if (_session.Phase == RunPhase.Running)
             {
-                _metrics.Update(_player.Position.z, _player.Velocity);
+                _metrics.Update(_player.BoardPosition.z, _player.Velocity);
             }
             if (_session.Phase != RunPhase.Stopped)
             {
@@ -214,7 +219,7 @@ namespace SledSurfers.Composition
                 _metrics.Distance,
                 _metrics.CollectedCoinCount,
                 _progressionConfig.GetCoinsPerKilometer(_playerProgress.IncomeUpgradeLevel),
-                _progressionConfig.CoinsPerCollectedCoin);
+                _progressionConfig.GetCoinsPerCollectedCoin(_playerProgress.IncomeUpgradeLevel));
             SessionWallet.Add(coinsEarned);
             _bestDistanceMeters = Mathf.Max(_bestDistanceMeters, _metrics.Distance);
             _playerProgress.CoinBalance = SessionWallet.Balance;
@@ -307,23 +312,31 @@ namespace SledSurfers.Composition
         {
             if (_session.Phase == RunPhase.Ready) { _session.Begin(position); }
             else if (_session.Phase == RunPhase.Running) { _steering.Begin(position.x); }
+            if (_session.Phase == RunPhase.Running)
+            {
+                _steeringJoystick.ShowAt(position);
+            }
         }
 
         private void OnMoved(Vector2 position)
         {
             if (_session.Phase == RunPhase.Pulling)
             {
-                _session.Move(position, Screen.height);
-                _player.SetPullback(_session.Power * _maximumPullbackDistance);
+                _session.Move(position, Screen.width, Screen.height);
+                _player.SetLaunchPose(_session.Power, _session.AimOffset, _maximumBackwardPullDistance, _maximumLateralPullDistance);
             }
-            else if (_session.Phase == RunPhase.Running) { _steering.Move(position.x, Screen.width, _fullSteeringDragScreenFraction); }
+            else if (_session.Phase == RunPhase.Running)
+            {
+                _steering.Move(position.x, _steeringJoystick.SteeringRadiusPixels);
+                _steeringJoystick.Move(position);
+            }
         }
 
         private void OnReleased()
         {
             if (_session.Release(out var velocity))
             {
-                var launchPosition = _player.Position;
+                var launchPosition = _player.BoardPosition;
                 if (_hudTargetDistance <= 0)
                 {
                     _targetDistance = Mathf.Max(0, _trackEndZ - launchPosition.z);
@@ -340,9 +353,10 @@ namespace SledSurfers.Composition
             }
             else if (_session.Phase == RunPhase.Ready)
             {
-                _player.SetPullback(0);
+                _player.SetLaunchPose(0, 0, _maximumBackwardPullDistance, _maximumLateralPullDistance);
             }
             _steering.End();
+            _steeringJoystick.Hide();
         }
 
         private void OnCanceled()
@@ -351,18 +365,20 @@ namespace SledSurfers.Composition
             _session.Cancel();
             if (wasPulling && _player != null)
             {
-                _player.SetPullback(0);
+                _player.SetLaunchPose(0, 0, _maximumBackwardPullDistance, _maximumLateralPullDistance);
             }
             if (_player != null)
             {
                 _steering.End();
                 _player.SetSteering(0, false);
             }
+            _steeringJoystick?.Hide();
         }
 
         private void OnDestroy()
         {
             _ui?.Dispose();
+            _steeringJoystick?.Dispose();
             if (_input != null)
             {
                 _input.Pressed -= OnPressed;
@@ -381,6 +397,7 @@ namespace SledSurfers.Composition
 
         private void CancelInput()
         {
+            _steeringJoystick?.Hide();
             if (_input == null || _player == null)
             {
                 return;

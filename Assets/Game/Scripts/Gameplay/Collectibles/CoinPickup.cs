@@ -18,7 +18,7 @@ namespace SledSurfers.Gameplay.Collectibles
             }
 
             var body = other.attachedRigidbody;
-            if (body == null || !body.TryGetComponent<PlayerMotor>(out _))
+            if (body == null || !body.TryGetComponent<PlayerMotor>(out var player) || !player.IsRunning)
             {
                 return;
             }

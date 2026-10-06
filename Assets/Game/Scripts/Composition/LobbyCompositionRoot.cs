@@ -23,11 +23,6 @@ namespace SledSurfers.Composition
         private PlayerProgressData _progress;
         private bool _isLoadingGame;
 
-        private void Awake()
-        {
-            Screen.orientation = ScreenOrientation.Portrait;
-        }
-
         private void Start()
         {
             if (_uiConfig == null || _windowRoot == null || _popupRoot == null || _widgetRoot == null || _progressionConfig == null || string.IsNullOrWhiteSpace(_gameplaySceneName))
@@ -86,6 +81,14 @@ namespace SledSurfers.Composition
             RefreshLobby();
         }
 
+        private void OnResetRequested()
+        {
+            _progressStorage.Reset();
+            _progress = _progressStorage.Load(_coinBalance);
+            SessionWallet.ResetBalance(_progress.CoinBalance);
+            RefreshLobby();
+        }
+
         private void RefreshLobby()
         {
             var balance = SessionWallet.Balance;
@@ -95,7 +98,8 @@ namespace SledSurfers.Composition
                 GetUpgradeCardState(PlayerUpgradeType.Skate, balance),
                 GetUpgradeCardState(PlayerUpgradeType.Income, balance),
                 OnUpgradeRequested,
-                StartGame);
+                StartGame,
+                OnResetRequested);
             _ui.Show<LobbyWindowController, LobbyWindowView, LobbyWindowArguments>(arguments);
         }
 
@@ -118,7 +122,7 @@ namespace SledSurfers.Composition
                 case PlayerUpgradeType.Skate:
                     return $"{_progressionConfig.GetGroundTurnRate(level):0.#}/{_progressionConfig.GetAirTurnRate(level):0.#}";
                 case PlayerUpgradeType.Income:
-                    return $"{_progressionConfig.GetCoinsPerKilometer(level):N0}/km";
+                    return $"{_progressionConfig.GetCoinsPerKilometer(level) / 1000f:0.##}/m · {_progressionConfig.GetCoinsPerCollectedCoin(level):N0}/coin";
                 default:
                     return string.Empty;
             }

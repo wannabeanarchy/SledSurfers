@@ -13,6 +13,7 @@ namespace SledSurfers.Gameplay.Launch
         public RunPhase Phase { get; private set; }
         public float Power { get; private set; }
         public float Angle { get; private set; }
+        public float AimOffset { get; private set; }
 
         public LaunchSession(float maximumSpeed, float maximumAngle, float pullScreenFraction)
         {
@@ -28,12 +29,14 @@ namespace SledSurfers.Gameplay.Launch
             Phase = RunPhase.Pulling;
         }
 
-        public void Move(Vector2 position, float screenHeight)
+        public void Move(Vector2 position, float screenWidth, float screenHeight)
         {
-            if (Phase != RunPhase.Pulling || screenHeight <= 0) { return; }
-            var displacement = (position - _origin) / (screenHeight * _pullScreenFraction);
-            Power = Mathf.Clamp01(-displacement.y);
-            Angle = -Mathf.Clamp(displacement.x, -1, 1) * _maximumAngle;
+            if (Phase != RunPhase.Pulling || screenWidth <= 0 || screenHeight <= 0) { return; }
+            var aimDisplacement = (position.x - _origin.x) / (screenWidth * _pullScreenFraction);
+            var backwardDisplacement = (_origin.y - position.y) / (screenHeight * _pullScreenFraction);
+            AimOffset = Mathf.Clamp(aimDisplacement, -1, 1);
+            Power = Mathf.Clamp01(backwardDisplacement);
+            Angle = -AimOffset * _maximumAngle;
         }
 
         public bool Release(out Vector3 velocity)
@@ -51,6 +54,7 @@ namespace SledSurfers.Gameplay.Launch
             if (Phase != RunPhase.Pulling) { return; }
             Power = 0;
             Angle = 0;
+            AimOffset = 0;
             Phase = RunPhase.Ready;
         }
 
@@ -59,6 +63,7 @@ namespace SledSurfers.Gameplay.Launch
             Phase = RunPhase.Ready;
             Power = 0;
             Angle = 0;
+            AimOffset = 0;
             _origin = Vector2.zero;
         }
 

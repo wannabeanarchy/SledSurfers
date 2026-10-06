@@ -13,25 +13,25 @@ MonoBehaviour:
   m_Name: ProgressionConfig
   m_EditorClassIdentifier:
   _baseLaunchSpeed: 40
-  _launchSpeedPerLevel: 4
+  _launchSpeedPerLevel: 8
   _slingshotCosts:
-    _startingCost: 500
+    _startingCost: 250
     _growthPerLevel: 1.5
     _maximumLevel: 10
   _baseGroundTurnRate: 25
   _groundTurnRateGrowthPerLevel: 1.2
-  _baseAirTurnRate: 10
+  _baseAirTurnRate: 4
   _airTurnRateGrowthPerLevel: 1.15
   _baseMaximumSteeringAngle: 15
   _maximumSteeringAnglePerLevel: 4
   _skateCosts:
-    _startingCost: 600
+    _startingCost: 300
     _growthPerLevel: 1.5
     _maximumLevel: 10
   _baseCoinsPerKilometer: 1000
   _incomeMultiplierPerLevel: 0.2
   _incomeCosts:
-    _startingCost: 1000
+    _startingCost: 500
     _growthPerLevel: 1.6
     _maximumLevel: 10
-  _coinsPerCollectedCoin: 100
+  _coinsPerCollectedCoin: 300

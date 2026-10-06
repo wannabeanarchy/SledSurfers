@@ -7,6 +7,7 @@ namespace SledSurfers.UI.Lobby
     {
         public int CoinBalance { get; }
         public Action PlayRequested { get; }
+        public Action ResetRequested { get; }
         public LobbyUpgradeCardState SlingshotUpgrade { get; }
         public LobbyUpgradeCardState SkateUpgrade { get; }
         public LobbyUpgradeCardState IncomeUpgrade { get; }
@@ -18,7 +19,8 @@ namespace SledSurfers.UI.Lobby
             LobbyUpgradeCardState skateUpgrade,
             LobbyUpgradeCardState incomeUpgrade,
             Action<PlayerUpgradeType> upgradeRequested,
-            Action playRequested)
+            Action playRequested,
+            Action resetRequested)
         {
             CoinBalance = coinBalance;
             SlingshotUpgrade = slingshotUpgrade;
@@ -26,6 +28,7 @@ namespace SledSurfers.UI.Lobby
             IncomeUpgrade = incomeUpgrade;
             UpgradeRequested = upgradeRequested ?? throw new ArgumentNullException(nameof(upgradeRequested));
             PlayRequested = playRequested ?? throw new ArgumentNullException(nameof(playRequested));
+            ResetRequested = resetRequested ?? throw new ArgumentNullException(nameof(resetRequested));
         }
     }
 }

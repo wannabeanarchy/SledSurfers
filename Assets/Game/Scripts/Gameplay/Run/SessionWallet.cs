@@ -20,6 +20,12 @@ namespace SledSurfers.Gameplay.Run
             _isInitialized = true;
         }
 
+        public static void ResetBalance(int startingBalance)
+        {
+            _balance = Mathf.Max(0, startingBalance);
+            _isInitialized = true;
+        }
+
         public static void Add(int amount)
         {
             Initialize(0);

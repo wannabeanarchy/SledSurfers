@@ -1,26 +1,29 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace SledSurfers.Gameplay.Player
 {
-    [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
+    [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider), typeof(PlayerFrictionModule))]
     public sealed class PlayerMotor : MonoBehaviour
     {
         private float _groundTurnRate = 90;
         private float _airTurnRate = 30;
         private float _maximumSteeringAngle = 35;
-        [SerializeField, Min(0)] private float _groundResistance = 2f;
-        [SerializeField, Min(1)] private float _slopeGravityMultiplier = 2;
-        [SerializeField, Min(.01f)] private float _groundProbeDistance = .2f;
-        [SerializeField, Min(0)] private float _stopSpeed = .3f;
-        private readonly Dictionary<Collider, float> _slowdownZones = new Dictionary<Collider, float>();
+        [SerializeField, Min(0)] private float _groundSnapDistance = .35f;
+        [SerializeField, Min(0)] private float _groundProbeStartOffset = .04f;
+        [SerializeField, Min(1)] private float _airGravityMultiplier = 1.8f;
+        [SerializeField, Min(0)] private float _maximumUpwardSpeed = 5f;
+        [SerializeField, Min(0)] private float _stopSpeed = .5f;
         private Rigidbody _body;
+        private PlayerFrictionModule _friction;
+        private CapsuleCollider _characterCollider;
+        private BoxCollider _boardCollider;
         private Collider[] _surfaces;
         private float _minimumX;
         private float _maximumX;
         private float _steeringInput;
         private float _headingAngle;
         private Vector3 _launchOrigin;
+        private Quaternion _launchOriginRotation = Quaternion.identity;
         private bool _hasGroundContact;
         private Vector3 _contactNormal;
         public bool IsRunning { get; private set; }
@@ -28,18 +31,36 @@ namespace SledSurfers.Gameplay.Player
         public float HeadingAngle => _headingAngle;
         public Vector3 GroundNormal { get; private set; } = Vector3.up;
         public Vector3 Position => _body != null ? _body.position : transform.position;
+        public Vector3 BoardPosition => _boardCollider != null ? _boardCollider.bounds.center : Position;
+        public BoxCollider BoardGroundCollider => _boardCollider;
         public Vector3 Velocity => _body != null ? _body.velocity : Vector3.zero;
 
         private void Awake()
         {
             _body = GetComponent<Rigidbody>();
+            _friction = GetComponent<PlayerFrictionModule>();
+            _characterCollider = GetComponent<CapsuleCollider>();
         }
 
-        public void Initialize(Collider[] surfaces, float minimumX, float maximumX)
+        public void Initialize(Collider[] surfaces, float minimumX, float maximumX, BoxCollider boardCollider)
         {
+            if (boardCollider == null || !boardCollider.enabled || boardCollider.attachedRigidbody != _body)
+            {
+                Debug.LogError("The skateboard ground collider must be enabled and attached to the player's Rigidbody.", this);
+                return;
+            }
+
             _surfaces = surfaces;
             _minimumX = minimumX;
             _maximumX = maximumX;
+            _boardCollider = boardCollider;
+            foreach (var surface in _surfaces)
+            {
+                if (surface != null && _characterCollider != null)
+                {
+                    Physics.IgnoreCollision(_characterCollider, surface, true);
+                }
+            }
         }
 
         public void ConfigureHandling(float groundTurnRate, float airTurnRate, float maximumSteeringAngle)
@@ -54,6 +75,7 @@ namespace SledSurfers.Gameplay.Player
             Stop();
             _body.isKinematic = true;
             _launchOrigin = _body.position;
+            _launchOriginRotation = _body.rotation;
         }
 
         public void ResetRun(Vector3 position, Quaternion rotation)
@@ -64,26 +86,33 @@ namespace SledSurfers.Gameplay.Player
             _body.rotation = rotation;
             transform.SetPositionAndRotation(position, rotation);
             _launchOrigin = position;
+            _launchOriginRotation = rotation;
             _steeringInput = 0;
             _headingAngle = 0;
             IsGrounded = false;
             GroundNormal = Vector3.up;
         }
 
-        public void SetPullback(float distance)
+        public void SetLaunchPose(float power, float aimOffset, float maximumBackwardDistance, float maximumLateralDistance)
         {
             if (_body.isKinematic && !IsRunning)
             {
-                _body.position = _launchOrigin - Vector3.forward * Mathf.Max(0, distance);
+                var localOffset = new Vector3(
+                    Mathf.Clamp(aimOffset, -1, 1) * Mathf.Max(0, maximumLateralDistance),
+                    0,
+                    -Mathf.Clamp01(power) * Mathf.Max(0, maximumBackwardDistance));
+                _body.position = _launchOrigin + _launchOriginRotation * localOffset;
             }
         }
 
         public void Launch(Vector3 velocity)
         {
-            _slowdownZones.Clear();
+            _friction.ClearSlowdownZones();
             _hasGroundContact = false;
             _steeringInput = 0;
             _headingAngle = Mathf.Atan2(velocity.x, velocity.z) * Mathf.Rad2Deg;
+            IsGrounded = TryGetBoardGround(out var surfaceNormal, out _);
+            GroundNormal = IsGrounded ? surfaceNormal : Vector3.up;
             _body.isKinematic = false;
             _body.velocity = velocity;
             IsRunning = true;
@@ -96,7 +125,7 @@ namespace SledSurfers.Gameplay.Player
 
         public void Stop()
         {
-            _slowdownZones.Clear();
+            _friction.ClearSlowdownZones();
             _hasGroundContact = false;
             IsRunning = false;
             _steeringInput = 0;
@@ -113,22 +142,6 @@ namespace SledSurfers.Gameplay.Player
             if (_body != null)
             {
                 _body.isKinematic = true;
-            }
-        }
-
-        public void EnterSlowdownZone(Collider zone, float additionalResistance)
-        {
-            if (zone != null)
-            {
-                _slowdownZones[zone] = Mathf.Max(0, additionalResistance);
-            }
-        }
-
-        public void ExitSlowdownZone(Collider zone)
-        {
-            if (zone != null)
-            {
-                _slowdownZones.Remove(zone);
             }
         }
 
@@ -157,19 +170,11 @@ namespace SledSurfers.Gameplay.Player
             {
                 return;
             }
-            var isSurface = false;
-            foreach (var surface in _surfaces)
-            {
-                if (surface == collision.collider)
-                {
-                    isSurface = true;
-                    break;
-                }
-            }
-            if (!isSurface)
+            if (!IsTrackSurface(collision.collider))
             {
                 return;
             }
+            var normalSum = Vector3.zero;
             for (var i = 0; i < collision.contactCount; i++)
             {
                 var normal = collision.GetContact(i).normal;
@@ -177,16 +182,84 @@ namespace SledSurfers.Gameplay.Player
                 {
                     continue;
                 }
-                _contactNormal = normal;
+                normalSum += normal;
+            }
+            if (normalSum.sqrMagnitude > 0)
+            {
+                _contactNormal = normalSum.normalized;
                 _hasGroundContact = true;
                 var velocity = _body.velocity;
-                var separatingSpeed = Vector3.Dot(velocity, normal);
-                if (separatingSpeed > 0)
+                var normalSpeed = Vector3.Dot(velocity, _contactNormal);
+                _body.velocity = velocity - _contactNormal * normalSpeed;
+            }
+        }
+
+        private bool IsTrackSurface(Collider candidate)
+        {
+            foreach (var surface in _surfaces)
+            {
+                if (surface == candidate)
                 {
-                    // Remove collision-induced separation, retaining motion along the slope.
-                    _body.velocity = velocity - normal * separatingSpeed;
+                    return true;
                 }
             }
+            return false;
+        }
+
+        private bool TryGetBoardGround(out Vector3 normal, out float snapDistance)
+        {
+            normal = Vector3.zero;
+            snapDistance = 0;
+            if (_boardCollider == null || !_boardCollider.enabled)
+            {
+                return false;
+            }
+
+            var contactTransform = _boardCollider.transform;
+            var halfLength = _boardCollider.size.z * .35f;
+            var halfHeight = _boardCollider.size.y * .5f;
+            var castDistance = _groundProbeStartOffset + _groundSnapDistance;
+            var closestGap = float.MaxValue;
+            var hitCount = 0;
+            for (var probeIndex = -1; probeIndex <= 1; probeIndex++)
+            {
+                var localPoint = _boardCollider.center
+                    + Vector3.forward * (halfLength * probeIndex)
+                    + Vector3.up * (_groundProbeStartOffset - halfHeight);
+                var ray = new Ray(contactTransform.TransformPoint(localPoint), Vector3.down);
+                var hasClosestHit = false;
+                var closestHit = new RaycastHit();
+                var closestHitDistance = castDistance;
+                foreach (var surface in _surfaces)
+                {
+                    if (surface == null || !surface.enabled || !surface.gameObject.activeInHierarchy
+                        || !surface.Raycast(ray, out var candidate, castDistance)
+                        || candidate.normal.y < .5f || candidate.distance >= closestHitDistance)
+                    {
+                        continue;
+                    }
+
+                    hasClosestHit = true;
+                    closestHit = candidate;
+                    closestHitDistance = candidate.distance;
+                }
+
+                if (hasClosestHit)
+                {
+                    normal += closestHit.normal;
+                    closestGap = Mathf.Min(closestGap, Mathf.Max(0, closestHit.distance - _groundProbeStartOffset));
+                    hitCount++;
+                }
+            }
+
+            if (hitCount == 0)
+            {
+                return false;
+            }
+
+            normal.Normalize();
+            snapDistance = closestGap;
+            return true;
         }
 
         private void FixedUpdate()
@@ -195,29 +268,30 @@ namespace SledSurfers.Gameplay.Player
             {
                 return;
             }
-            var ray = new Ray(_body.position + Vector3.up * .3f, Vector3.down);
-            var hasSurface = false;
-            var hit = new RaycastHit();
-            var closestDistance = .3f + _groundProbeDistance;
-            foreach (var surface in _surfaces)
-            {
-                if (surface != null && surface.enabled && surface.gameObject.activeInHierarchy && surface.Raycast(ray, out var candidate, closestDistance))
-                {
-                    hasSurface = true;
-                    hit = candidate;
-                    closestDistance = candidate.distance;
-                }
-            }
-            if (_hasGroundContact)
+            var hasSurface = _hasGroundContact;
+            var surfaceNormal = hasSurface ? _contactNormal : Vector3.up;
+            _hasGroundContact = false;
+            if (!hasSurface && TryGetBoardGround(out var probeNormal, out var snapDistance))
             {
                 hasSurface = true;
-                hit.normal = _contactNormal;
+                surfaceNormal = probeNormal;
+                if (snapDistance > .001f)
+                {
+                    _body.position -= Vector3.up * snapDistance;
+                }
             }
-            _hasGroundContact = false;
             var velocity = _body.velocity;
-            // Ascending a slope is grounded motion; only velocity away from the surface indicates takeoff.
-            IsGrounded = hasSurface && Vector3.Dot(velocity, hit.normal) <= .5f;
-            GroundNormal = IsGrounded ? hit.normal : Vector3.up;
+            IsGrounded = hasSurface;
+            GroundNormal = IsGrounded ? surfaceNormal : Vector3.up;
+            var normalSpeed = IsGrounded ? Vector3.Dot(velocity, surfaceNormal) : 0;
+            if (IsGrounded && Mathf.Abs(normalSpeed) > 0.001f)
+            {
+                velocity -= surfaceNormal * normalSpeed;
+            }
+            else if (!IsGrounded)
+            {
+                velocity.y = Mathf.Min(velocity.y, _maximumUpwardSpeed);
+            }
             var horizontalSpeed = new Vector2(velocity.x, velocity.z).magnitude;
             if (Mathf.Abs(_steeringInput) > 0.001f && horizontalSpeed > 0.01f)
             {
@@ -233,10 +307,10 @@ namespace SledSurfers.Gameplay.Player
                 var forward = Quaternion.Euler(0, _headingAngle, 0) * Vector3.forward;
                 if (IsGrounded)
                 {
-                    var surfaceSpeed = Vector3.ProjectOnPlane(velocity, hit.normal).magnitude;
-                    var normalSpeed = Vector3.Dot(velocity, hit.normal);
-                    var direction = Vector3.ProjectOnPlane(forward, hit.normal).normalized;
-                    velocity = direction * surfaceSpeed + hit.normal * normalSpeed;
+                    var surfaceSpeed = Vector3.ProjectOnPlane(velocity, surfaceNormal).magnitude;
+                    var slopeNormalSpeed = Vector3.Dot(velocity, surfaceNormal);
+                    var direction = Vector3.ProjectOnPlane(forward, surfaceNormal).normalized;
+                    velocity = direction * surfaceSpeed + surfaceNormal * slopeNormalSpeed;
                 }
                 else
                 {
@@ -244,32 +318,43 @@ namespace SledSurfers.Gameplay.Player
                     velocity.z = forward.z * horizontalSpeed;
                 }
             }
-            var nextX = _body.position.x + velocity.x * Time.fixedDeltaTime;
-            if (nextX < _minimumX || nextX > _maximumX)
-            {
-                velocity.x = (Mathf.Clamp(nextX, _minimumX, _maximumX) - _body.position.x) / Time.fixedDeltaTime;
-            }
             _body.velocity = velocity;
-            if (IsGrounded)
+            if (!IsGrounded)
             {
-                if (velocity.z <= _stopSpeed)
-                {
-                    Stop();
-                    return;
-                }
-                var tangentVelocity = Vector3.ProjectOnPlane(velocity, hit.normal);
-                var additionalResistance = 0f;
-                foreach (var zone in _slowdownZones)
-                {
-                    if (zone.Key != null && zone.Key.enabled && zone.Key.gameObject.activeInHierarchy)
-                    {
-                        additionalResistance = Mathf.Max(additionalResistance, zone.Value);
-                    }
-                }
-                var resistance = Mathf.Min(_groundResistance + additionalResistance, tangentVelocity.magnitude / Time.fixedDeltaTime);
-                // Rigidbody gravity already contributes once; amplify only its component along the slope.
-                var slopeGravity = Vector3.ProjectOnPlane(Physics.gravity, hit.normal) * (_slopeGravityMultiplier - 1);
-                _body.AddForce(slopeGravity - tangentVelocity.normalized * resistance, ForceMode.Acceleration);
+                _body.AddForce(Physics.gravity * (_airGravityMultiplier - 1), ForceMode.Acceleration);
+            }
+            else if (velocity.z > _stopSpeed)
+            {
+                _friction.ApplyGroundForces(_body, surfaceNormal, velocity);
+            }
+
+            ConstrainToTrackBounds();
+            if (IsGrounded && velocity.magnitude <= _stopSpeed)
+            {
+                Stop();
+            }
+        }
+
+        private void ConstrainToTrackBounds()
+        {
+            var halfWidth = _boardCollider != null ? _boardCollider.bounds.extents.x : 0;
+            var minimumX = _minimumX + halfWidth;
+            var maximumX = _maximumX - halfWidth;
+            if (minimumX > maximumX)
+            {
+                minimumX = maximumX = (_minimumX + _maximumX) * .5f;
+            }
+
+            var position = _body.position;
+            var velocity = _body.velocity;
+            var nextX = position.x + velocity.x * Time.fixedDeltaTime;
+            var constrainedX = Mathf.Clamp(nextX, minimumX, maximumX);
+            if (Mathf.Abs(constrainedX - nextX) > .0001f || position.x < minimumX || position.x > maximumX)
+            {
+                position.x = constrainedX;
+                _body.position = position;
+                velocity.x = 0;
+                _body.velocity = velocity;
             }
         }
     }
