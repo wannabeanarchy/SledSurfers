@@ -156,15 +156,15 @@ namespace SledSurfers.Gameplay.Player
 
         private void OnCollisionEnter(Collision collision)
         {
-            ResolveSurfaceContact(collision);
+            ResolveSurfaceContact(collision, true);
         }
 
         private void OnCollisionStay(Collision collision)
         {
-            ResolveSurfaceContact(collision);
+            ResolveSurfaceContact(collision, false);
         }
 
-        private void ResolveSurfaceContact(Collision collision)
+        private void ResolveSurfaceContact(Collision collision, bool isNewContact)
         {
             if (!IsRunning || _surfaces == null)
             {
@@ -188,9 +188,10 @@ namespace SledSurfers.Gameplay.Player
             {
                 _contactNormal = normalSum.normalized;
                 _hasGroundContact = true;
-                var velocity = _body.velocity;
-                var normalSpeed = Vector3.Dot(velocity, _contactNormal);
-                _body.velocity = velocity - _contactNormal * normalSpeed;
+                if (isNewContact)
+                {
+                    _body.velocity = Vector3.ProjectOnPlane(collision.relativeVelocity, _contactNormal);
+                }
             }
         }
 

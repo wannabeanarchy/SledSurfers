@@ -19,11 +19,11 @@ MonoBehaviour:
     _growthPerLevel: 1.5
     _maximumLevel: 10
   _baseGroundTurnRate: 25
-  _groundTurnRateGrowthPerLevel: 1.2
+  _groundTurnRateGrowthPerLevel: 1.1
   _baseAirTurnRate: 4
-  _airTurnRateGrowthPerLevel: 1.15
+  _airTurnRateGrowthPerLevel: 1.1
   _baseMaximumSteeringAngle: 15
-  _maximumSteeringAnglePerLevel: 4
+  _maximumSteeringAnglePerLevel: 2
   _skateCosts:
     _startingCost: 300
     _growthPerLevel: 1.5
