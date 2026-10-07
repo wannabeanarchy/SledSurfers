@@ -1,56 +1,60 @@
 # Sled Surfers Gameplay Test
 
-A Unity gameplay prototype for the supplied technical assignment, built with the supplied Miraculous Ladybug assets.
+A Unity gameplay prototype inspired by Sled Surfers, using the supplied Miraculous Ladybug assets.
 
-## Open and play
+## Run the project
 
-- Unity version: **2022.3.62f3 LTS**.
-- Open the repository root in Unity Hub.
-- Open `Assets/Game/Scenes/LobbyScene.unity` and press Play.
-- In the lobby, press **TAP TO PLAY** to start a run. The `SampleScene` is an animation preview.
+**Unity version:** 2022.3.62f3 LTS.
+
+1. Open the repository root in Unity Hub and let Unity import the project.
+2. Open `Assets/Game/Scenes/LobbyScene.unity` and press Play.
+3. Press **TAP TO PLAY** in the lobby to enter the gameplay scene.
+
+**Android APK (ARMv7):** [Download the test build](build-android/sled-surfers-test.apk).
+
+**Gameplay video:** [Download the recording](video-gamplay/Screen%20Recording%202026-10-07%20at%2013.03.03.mov).
+
+The prototype has been checked in Unity Editor and in the Android build.
 
 ## Controls
 
-- **Launch:** hold the left mouse button or touch the screen, drag down to pull the slingshot, and release to launch. Pull distance controls launch power; horizontal offset aims the launch.
-- **Steer:** while moving, drag horizontally. The on-screen joystick appears while steering. Releasing stops input and keeps the current heading.
-- The same pointer gesture is used for launch setup before the run and steering after launch.
+- **Launch:** hold the left mouse button or touch the screen, drag down to set power, and release. Dragging sideways aims the launch in the opposite direction, like a slingshot.
+- **Steer:** press again after launch and drag horizontally. Releasing stops turning and keeps the current heading.
+- **RETRY:** start a new run with the saved upgrades.
+- **CONTINUE:** return to the lobby to purchase upgrades.
+- **RESET:** clear local progress from the lobby.
 
-## Run and progression
+## Gameplay and progression
 
-The run tracks forward distance, speed in meters per second, track progress, collected coins, and best distance. A run ends on a crash, when the player loses momentum, or upon reaching the end of the active track. On finish, movement is frozen, the flag rises, coins burst around the player, and the result popup offers **RETRY** or **CONTINUE**.
+Slide downhill, steer around obstacles and collect coins. Icebergs end the run; puddles increase resistance and slow the player. A run also ends when the player loses momentum on the ground or reaches the end of the track.
 
-The lobby has three upgrades, configured in `Assets/Game/Configs/ProgressionConfig.asset`:
+Distance and collected coins determine the reward, which is credited once at the end of the run. The HUD displays distance, speed, track progress and the best-distance marker.
 
-- **Slingshot:** maximum launch speed starts at 40 m/s and increases by 8 m/s per level.
-- **Skate:** ground and air turn rates start at 25°/s and 4°/s, then grow by 10% per level. Maximum steering angle starts at 15° and grows by 2° per level (up to level 10).
-- **Income:** increases both distance and collected-coin rewards by 20% per level. Base distance reward is 1,000 coins per kilometer (one coin per meter); each collected coin is worth 300 coins before the income multiplier.
+The lobby offers three persistent upgrades:
 
-Upgrade prices, growth and level caps are also configured there. Coin balance, upgrade levels and best distance are stored locally through `PlayerProgressStorage` in `PlayerPrefs`. The lobby reset button clears this saved progress.
+- **Slingshot:** increases launch speed.
+- **Skate:** improves ground/air turning and increases the maximum steering angle.
+- **Income:** increases rewards for distance and collected coins.
 
-## Project layout
+Balance, upgrade levels and best distance persist between runs and application restarts. Retry resets the run and restores pickups while retaining progression.
 
-- `Assets/Game/Scenes/`: `LobbyScene` and `GameScene`.
-- `Assets/Game/Scripts/Composition/`: scene setup and run-flow coordination.
-- `Assets/Game/Scripts/Gameplay/`: player movement, launch/run metrics, collectibles and obstacles.
-- `Assets/Game/Scripts/Input/`: pointer input and drag steering.
-- `Assets/Game/Scripts/Progression/` and `Persistence/`: upgrade formulas/configuration and local save boundary.
-- `Assets/Game/Scripts/Presentation/` and `UI/`: camera, animation, rope/flag/joystick visuals, HUD, lobby and result UI.
-- `Assets/Game/Configs/`: ScriptableObject configuration assets.
-- `Assets/Game/Prefabs/`: project prefabs grouped by gameplay role.
-- `Assets/Game/Art/Environment/Terrain/SnowTrack.asset`: shared terrain data used by the gameplay terrain and its collider; the hill profile has been gently smoothed.
-- `Assets/Ladybug/`: supplied source assets.
-- `Packages/` and `ProjectSettings/`: Unity package and project configuration.
+## Implementation decisions
 
-## Implementation notes
+- **Scene composition:** separate lobby and gameplay scenes have composition roots that wire serialized references explicitly. `GameplayRunCoordinator` coordinates input, run transitions, metrics, rewards and results.
+- **Run state:** `LaunchSession` separates ready, pulling, running and stopped phases, keeping launch and steering input tied to the current phase.
+- **Physics:** `PlayerMotor` uses Rigidbody movement and a dedicated skateboard contact collider with ground probes. `PlayerFrictionModule` handles resistance and additional slope acceleration. Both movement and force application run in `FixedUpdate`.
+- **Configuration:** serialized fields and `ProgressionConfig` keep gameplay tuning and upgrade formulas separate from run coordination.
+- **Persistence:** `PlayerProgressStorage` wraps JSON storage in `PlayerPrefs`, isolating saving and loading from gameplay logic.
+- **Presentation and UI:** camera, animation and visual effects are separate from movement logic. Typed UI views and controllers are created through `UIFactory` and managed by `UIManager`.
+- **Assets:** supplied character and environment assets are reused, with materials adapted to Unity's Built-in rendering pipeline.
 
-`GameplayCompositionRoot` validates scene references and wires dependencies explicitly; there is no dependency-injection framework. `GameplayRunCoordinator` owns run input and transitions. `PlayerMotor` owns Rigidbody movement and skateboard-based track contact; new surface contacts are projected along the slope once, while continuing contacts retain the current velocity so ground resistance can slow the player. `PlayerFrictionModule` applies ground resistance, slope acceleration and slowdown zones. `LaunchSession` handles pull-and-launch state. The visible skateboard mesh collider is disabled; a dedicated collider on the board handles physical contact, while probes help maintain ground contact over uneven sections.
-
-The UI is built from typed views and controllers, registered through `UIFactory` and managed by `UIManager`. `PlayerProgressStorage` isolates persistence from gameplay systems. Terrain heights can be edited with Unity's Terrain tools; the scene's terrain and TerrainCollider use the same `SnowTrack` data.
-
-## Asset compatibility
-
-Some shaders and source texture references from the supplied asset pack are unavailable. Missing custom shaders are replaced with Built-in shaders where needed; shader-specific effects such as world bending and custom reflections are not reproduced.
+Project code is under `Assets/Game/Scripts/`, grouped into `Composition`, `Gameplay`, `Input`, `Progression`, `Persistence`, `Presentation` and `UI`. Scenes, configs and prefabs are under `Assets/Game/Scenes/`, `Configs/` and `Prefabs/`.
 
 ## With more time
 
-Add regression tests for progression, reward calculations and run transitions, then do more repeatable physics and orientation checks on target devices. A playable build is optional; the local Android test APK is not tracked in the repository.
+- Add audio for launch, sliding, pickups, impacts and results, with a mute control.
+- Add optional haptic feedback for launch, pickups and crashes.
+- Refine steering, slope transitions and upgrade balance through repeatable playtests.
+- Improve pickup/impact feedback, camera response and material consistency.
+- Add focused automated tests for run transitions, rewards, upgrades and save loading.
+- Profile frame time and allocations on target devices, and check more screen sizes and background/resume scenarios.
