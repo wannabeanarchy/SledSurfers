@@ -50,6 +50,8 @@ Balance, upgrade levels and best distance persist between runs and application r
 
 Project code is under `Assets/Game/Scripts/`, grouped into `Composition`, `Gameplay`, `Input`, `Progression`, `Persistence`, `Presentation` and `UI`. Scenes, configs and prefabs are under `Assets/Game/Scenes/`, `Configs/` and `Prefabs/`.
 
+Detailed responsibilities, physics and run flow are documented in [docs/DESIGN.md](docs/DESIGN.md).
+
 ## With more time
 
 - Add audio for launch, sliding, pickups, impacts and results, with a mute control.
